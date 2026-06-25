@@ -19,7 +19,7 @@ def degToRad(degrees):
 class MyGame(ShowBase):
     def __init__(self):
         ShowBase.__init__(self)
-
+        self.blockType = 1
         self.hotbarSlots = ['grass', 'dirt', 'sand', 'stone', 'wood']
         self.playerBuilt = set()
         self.pusher = CollisionHandlerPusher()
@@ -114,9 +114,62 @@ class MyGame(ShowBase):
         self.selectedBlockType = type
         self.blockText.setText(f"{type.capitalize()}")
     
+    def updateHandBlock(self):
+        # 1. Si ya había un bloque en la mano, lo borramos de la pantalla
+        if hasattr(self, 'hand_block') and self.hand_block:
+            self.hand_block.removeNode()
+        # 2. Traducimos tu self.blockType numérico al nombre del modelo .glb que usas
+        block_name = (self.selectedBlockType)
+
+        # 3. Cargamos el modelo .glb correspondiente
+        # (Usa la misma ruta que tengas dentro de tu función createNewBlock)
+        self.hand_block = self.loader.loadModel(f"{block_name}-block.glb")
+        
+        # 4. Lo anclamos a la cámara para que se mueva con tu mirada
+        self.hand_block.reparentTo(self.camera)
+        
+        # 5. Lo posicionamos abajo a la derecha y lo escalamos para que no tape toda la pantalla
+        self.hand_block.setPos(1.2, 2.5, -0.8)
+        self.hand_block.setHpr(-15, 10, 5) # Pequeña rotación para darle perspectiva 3D
+        self.hand_block.setScale(0.4)
+        
+        # Opcional: Desactivamos sus colisiones para que no interfiera con tu Raycast de romper bloques
+        self.hand_block.setCollideMask(0)
+
+    def pauseMenu(self):
+        if self.cameraSwingActivated:
+            # === COMPORTAMIENTO AL PAUSAR (ABRIR) ===
+            self.cameraSwingActivated = False
+            btnTexture = self.loader.loadTexture('button.png')
+
+            # Creamos únicamente el botón de salir centrado en la pantalla
+            self.qitButton = DirectButton(
+                parent=self.aspect2d,
+                image=btnTexture,
+                relief=None,
+                text='Quit Game',
+                text_font=self.customFont,
+                text_fg=(1, 1, 1, 1),
+                text_scale=0.05,
+                text_pos=(0, -0.015),
+                scale=(0.4, 1, 0.08), 
+                pos=(0, 0, 0), # (0,0,0) lo deja perfectamente centrado
+                command=self.userExit
+            )    
+            
+        else:
+            # === COMPORTAMIENTO AL REANUDAR (CERRAR) CON ESCAPE ===
+            # Si el jugador vuelve a pulsar Escape, borramos el botón de salir
+            if hasattr(self, 'qitButton'):
+                self.qitButton.destroy()
+                
+            self.cameraSwingActivated = True
+            self.captureMouse()
+
+
     def handleLeftClick(self):
-        self.captureMouse()
         self.removeBlock()
+        self.captureMouse()
 
     def setupInventoryUI(self):
         self.hotbarBg = OnscreenImage(image='Hotbar.png',
@@ -233,10 +286,10 @@ class MyGame(ShowBase):
         self.accept('3', self.changeItem, ['sand', 2])
         self.accept('4', self.changeItem, ['stone', 3])
         self.accept('5', self.changeItem, ['wood', 4])
-        self.accept('6', self.changeItem, ['grass', 5])
-        self.accept('7', self.changeItem, ['dirt', 6])
-        self.accept('8', self.changeItem, ['sand', 7])
-        self.accept('9', self.changeItem, ['stone', 8])
+        self.accept('6', self.changeItem, ['', 5])
+        self.accept('7', self.changeItem, ['', 6])
+        self.accept('8', self.changeItem, ['', 7])
+        self.accept('9', self.changeItem, ['', 8])
             
     
                     
@@ -246,7 +299,8 @@ class MyGame(ShowBase):
         self.selected_slot = slotIndex 
         
         newXpos = -0.53 + (slotIndex * 0.133)
-        self.selector_ui.setX(newXpos)    
+        self.selector_ui.setX(newXpos)   
+        self.updateHandBlock() 
 
     def captureMouse(self):
         self.cameraSwingActivated = True
@@ -350,11 +404,11 @@ class MyGame(ShowBase):
         elif type == 'wood':
             self.woodLog.instanceTo(self.newBlockNode)
 
-        # Ajustamos el centro de la caja a la posición del bloque
-        self.blockSolid = CollisionBox((x, y, z), 1, 1, 1)
-        self.blockNode = CollisionNode('block-collision-node')
-        self.blockNode.addSolid(self.blockSolid)
-        self.blockNode.setIntoCollideMask(BitMask32.bit(1) | BitMask32.bit(2)) 
+        if type != '':
+            self.blockSolid = CollisionBox((x, y, z), 1, 1, 1)
+            self.blockNode = CollisionNode('block-collision-node')
+            self.blockNode.addSolid(self.blockSolid)
+            self.blockNode.setIntoCollideMask(BitMask32.bit(1) | BitMask32.bit(2)) 
         
         # Adjuntamos el colisionador directamente al render para independizar las coordenadas globales
         collider = self.render.attachNewNode(self.blockNode)
@@ -365,7 +419,7 @@ class MyGame(ShowBase):
         self.dirtBlock = self.loader.loadModel('dirt-block.glb')
         self.stoneBlock = self.loader.loadModel('stone-block.glb')
         self.sandBlock = self.loader.loadModel('sand-block.glb')
-        self.woodLog = self.loader.loadModel('oak-log.glb')
+        self.woodLog = self.loader.loadModel('wood-block.glb')
 
     def setupLights(self):
         mainLight = DirectionalLight('main light')
